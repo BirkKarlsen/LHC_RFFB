@@ -8,6 +8,7 @@ Author: Birk Emil Karlsen-Bæck
 import numpy as np
 import matplotlib.pyplot as plt
 import json
+import pandas as pd
 
 # Functions -----------------------------------------------------------------------------------------------------------
 
@@ -33,7 +34,7 @@ def import_tf_measurement(directory, file_name):
 
     return H, H_phase, freq
 
-def get_tf_measurement_conditions(directory, file_name):
+def get_tf_measurement_conditions(directory, file_name, open_loop=False):
     r'''
     Takes in the directory and the file name of a LHC TF measurement and prints the settings of the cavity.
 
@@ -46,12 +47,6 @@ def get_tf_measurement_conditions(directory, file_name):
         # Finds the data related to the transfer function (TF)
         data = json.load(f)['environment']['prm']['fit_prm']
 
-        print(data.keys())
-        print(data['analog'].keys())
-        print(data['cavity'].keys())
-        print(data['delay'].keys())
-        print(data['digital'].keys())
-
     print('--- Analog Feedback ---')
     print(f"Gain: {data['analog']['gain']}")
     print(f"Tau: {data['analog']['tau']}")
@@ -60,7 +55,16 @@ def get_tf_measurement_conditions(directory, file_name):
     print(f"Tau: {data['digital']['tau']}")
     print(f"Phase: {data['digital']['phase']}")
     print('--- Cavity ---')
-    
+    print(f"Goo: {data['cavity']['Goo']}")
+    print(f"Q: {data['cavity']['Q']}")
+    if not open_loop:
+        print(f"Qcl: {data['cavity']['Qcl']}")
+    print(f"R: {data['cavity']['R']}")
+    print(f"detune: {data['cavity']['detune']}")
+    print(f"wr: {data['cavity']['wr']}")
+    print('--- Delay ---')
+    print(f"controller: {data['delay']['controller']}")
+    print(f"loop: {data['delay']['loop']}")
 
 
 def find_closes_value(array, value):
@@ -85,17 +89,49 @@ def smooth_out_central_peak(H, freq, points, n_avg=3):
     return H
 
 
+def import_klystron_data(filename):
+    #data = {}
+    #with open(filename, 'r') as f:
+    #    Lines = f.readlines()
+    cavities = ['VARIABLE: ACSKL.UX45.L1B1:RF_KLYSTRON_FWD', 'VARIABLE: ACSKL.UX45.L1B2:RF_KLYSTRON_FWD',
+                'VARIABLE: ACSKL.UX45.L2B1:RF_KLYSTRON_FWD', 'VARIABLE: ACSKL.UX45.L2B2:RF_KLYSTRON_FWD',
+                'VARIABLE: ACSKL.UX45.L3B1:RF_KLYSTRON_FWD', 'VARIABLE: ACSKL.UX45.L3B2:RF_KLYSTRON_FWD'
+                'VARIABLE: ACSKL.UX45.L4B1:RF_KLYSTRON_FWD', 'VARIABLE: ACSKL.UX45.L4B2:RF_KLYSTRON_FWD',
+                'VARIABLE: ACSKL.UX45.L5B1:RF_KLYSTRON_FWD', 'VARIABLE: ACSKL.UX45.L5B2:RF_KLYSTRON_FWD',
+                'VARIABLE: ACSKL.UX45.L6B1:RF_KLYSTRON_FWD', 'VARIABLE: ACSKL.UX45.L6B2:RF_KLYSTRON_FWD',
+                'VARIABLE: ACSKL.UX45.L7B1:RF_KLYSTRON_FWD', 'VARIABLE: ACSKL.UX45.L7B2:RF_KLYSTRON_FWD',
+                'VARIABLE: ACSKL.UX45.L8B1:RF_KLYSTRON_FWD', 'VARIABLE: ACSKL.UX45.L8B2:RF_KLYSTRON_FWD']
+    data = pd.read_csv(filename, names=cavities)
 
-directory = '../transfer_function_measurements/closed_loop/'
-file_name = '1B1.json'
 
-with open(directory + file_name) as f:
-    # Finds the data related to the transfer function (TF)
-    data = json.load(f)['environment']['prm']['fit_prm']
+    return data
 
-    print(data.keys())
-    print(data['analog'].keys())
-    print(data['cavity'].keys())
-    print(data['delay'].keys())
-    print(data['digital'].keys())
+def import_klystron_data2(filename, time_interval, sampling_rate):
+    n_points = time_interval // sampling_rate
+    data = {}
+    with open(filename, 'r') as f:
+        Lines = f.readlines()
+        i = 0
+        name_i = ''
+        timestamps_i = []
+        values_i = []
+        for line in Lines:
+            if line.startswith('VARIABLE: '):
+                data[name_i] = {'Timestamps': np.array(timestamps_i),
+                                'Power': np.array(values_i, dtype=float)}
+                name_i = line[len('VARIABLE: '):-1]
+                timestamps_i = []
+                values_i = []
+            elif line != '\n' and not line.startswith('Timestamp'):
+                line_parts = line.split(',')
+                timestamps_i.append(line_parts[0])
+                values_i.append(line_parts[1])
 
+
+    del data['']
+
+    return data
+
+
+def into_second(time):
+    return sum(x * float(t) for x, t in zip([3600, 60, 1], time.split(":")))
